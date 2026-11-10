@@ -1,0 +1,11 @@
+{
+  "name": "Filed Under",
+  "short_name": "Filed Under",
+  "description": "Word solitaire: file every word under the heading it belongs to.",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#b5d0cb",
+  "theme_color": "#2b6468",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

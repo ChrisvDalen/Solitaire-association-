@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#2b6468">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<!--page-->
+<title>Filed Under</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap">
+<link rel="stylesheet" href="styles.css">
+<!--/page-->
+</head>
+<body>
+<!--page-->
+<div id="app">
+  <header class="bar">
+    <button class="icon-btn" id="btn-menu" aria-label="Levels and help">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+    </button>
+    <div class="bar-title">
+      <span class="wordmark">Filed Under</span>
+      <span class="level-tag" id="level-tag">Level 1</span>
+    </div>
+    <dl class="stats">
+      <div><dt>Moves</dt><dd id="stat-moves">0</dd></div>
+      <div><dt>Slips</dt><dd id="stat-slips">0</dd></div>
+    </dl>
+  </header>
+
+  <main id="board">
+    <section class="trays" id="trays" aria-label="Trays"></section>
+    <section class="piles" id="piles" aria-label="Piles"></section>
+  </main>
+
+  <footer class="dock">
+    <div class="inbox">
+      <button class="stock" id="stock" aria-label="Draw from inbox"></button>
+      <div class="waste" id="waste"></div>
+    </div>
+    <div class="dock-actions">
+      <button class="btn" id="btn-undo">Undo</button>
+      <button class="btn" id="btn-hint">Hint</button>
+    </div>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</div>
+
+<div class="sheet" id="sheet-win" hidden>
+  <div class="sheet-card">
+    <p class="eyebrow" id="win-eyebrow">Level 1</p>
+    <h2>All filed</h2>
+    <div class="stamps" id="win-stamps" aria-hidden="true"></div>
+    <p class="sheet-line" id="win-line"></p>
+    <div class="sheet-actions">
+      <button class="btn" id="btn-replay">Replay</button>
+      <button class="btn primary" id="btn-next">Next level</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="sheet-menu" hidden>
+  <div class="sheet-card">
+    <h2>Filed Under</h2>
+    <ol class="rules">
+      <li>A <b>heading card</b> opens a tray. Drag it up, or tap it and then tap an empty tray.</li>
+      <li>File each <b>word</b> in the tray whose heading it belongs under. The game does not tell you which.</li>
+      <li>On the piles, cards stack only on a card with the same heading. Any card can start an empty pile.</li>
+      <li>Draw from the inbox when you are stuck. A full tray empties itself and can be reused.</li>
+    </ol>
+    <p class="sheet-line">Wrong guesses and hints count as slips. One slip or fewer earns three stamps.</p>
+    <h3>Levels</h3>
+    <div class="level-grid" id="level-grid"></div>
+    <div class="sheet-actions">
+      <button class="btn" id="btn-restart">Restart level</button>
+      <button class="btn primary" id="btn-close-menu">Play</button>
+    </div>
+  </div>
+</div>
+
+<script src="src/data.js"></script>
+<script src="src/engine.js"></script>
+<script src="src/ui.js"></script>
+<!--/page-->
+</body>
+</html>

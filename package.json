@@ -1,0 +1,11 @@
+{
+  "name": "filed-under",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Filed Under, a word-association solitaire game for phones",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "test": "node --test test/engine.test.js",
+    "build": "node tools/build-single.mjs"
+  }
+}
