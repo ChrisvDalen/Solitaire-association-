@@ -32,21 +32,33 @@
     return arr;
   }
 
-  // Difficulty curve: more headings, more words per heading, deeper piles.
+  // Difficulty curve: more headings, more words per heading, fewer spare trays.
   function paramsFor(n) {
-    if (n <= 1) return { cats: 3, words: 3, slots: 2, cols: 3, depth: 1 };
-    if (n <= 2) return { cats: 3, words: 4, slots: 2, cols: 4, depth: 1 };
-    if (n <= 4) return { cats: 4, words: 4, slots: 2, cols: 4, depth: 1 };
-    if (n <= 7) return { cats: 5, words: 4, slots: 3, cols: 4, depth: 2 };
-    if (n <= 11) return { cats: 5, words: 5, slots: 3, cols: 5, depth: 1 };
-    if (n <= 16) return { cats: 6, words: 5, slots: 3, cols: 5, depth: 2 };
-    if (n <= 24) return { cats: 7, words: 5, slots: 3, cols: 5, depth: 2 };
-    return { cats: 8, words: 6, slots: 3, cols: 5, depth: 3 };
+    if (n <= 1) return { cats: 3, words: 3, slots: 2, cols: 3 };
+    if (n <= 2) return { cats: 3, words: 4, slots: 2, cols: 4 };
+    if (n <= 4) return { cats: 4, words: 4, slots: 2, cols: 4 };
+    if (n <= 7) return { cats: 5, words: 4, slots: 3, cols: 4 };
+    if (n <= 11) return { cats: 5, words: 5, slots: 3, cols: 5 };
+    if (n <= 16) return { cats: 6, words: 5, slots: 3, cols: 5 };
+    if (n <= 24) return { cats: 7, words: 5, slots: 3, cols: 5 };
+    return { cats: 8, words: 6, slots: 3, cols: 5 };
+  }
+  var DAILY_PARAMS = { cats: 6, words: 5, slots: 3, cols: 5 };
+
+  // Most cards go face down onto the piles in a staircase; about a third stay in the inbox.
+  function pileSizes(total, p) {
+    var onPiles = total - Math.max(p.cats, Math.round(total * 0.32));
+    var q = Math.floor(onPiles / p.cols), r = onPiles % p.cols, sizes = [], i;
+    for (i = 0; i < p.cols; i++) sizes.push(q + (i >= p.cols - r ? 1 : 0));
+    for (i = 0; i < Math.floor(p.cols / 2); i++) {
+      var shift = Math.min(sizes[i] - 1, Math.floor(p.cols / 2) - i);
+      sizes[i] -= shift; sizes[p.cols - 1 - i] += shift;
+    }
+    return sizes;
   }
 
-  function deal(n, attempt) {
-    var p = paramsFor(n);
-    var r = rng(n * 7919 + attempt * 104729 + 17);
+  function dealWith(p, seed, meta) {
+    var r = rng(seed);
     var idx = [];
     for (var i = 0; i < DATA.length; i++) idx.push(i);
     var chosen = shuffle(idx, r).slice(0, p.cats);
@@ -61,31 +73,44 @@
 
     var order = shuffle(cards.map(function (c) { return c.id; }), r);
     var cols = [], down = [];
-    for (var c = 0; c < p.cols; c++) {
-      var size = c + p.depth;
+    pileSizes(cards.length, p).forEach(function (size) {
       cols.push(order.splice(0, size));
       down.push(size - 1);
-    }
+    });
     var placed = [];
     for (var k = 0; k < p.cats; k++) placed.push(0);
     var slots = [];
     for (var s = 0; s < p.slots; s++) slots.push(null);
 
+    var level = { n: meta.n || 0, daily: meta.daily || null, params: p, cards: cards };
     return {
-      level: { n: n, params: p, cards: cards },
+      level: level,
       state: { cols: cols, down: down, stock: order, waste: [], slots: slots, placed: placed, moves: 0 }
     };
   }
 
-  // Every level is checked by the solver, so no deal is impossible from the start.
-  function makeLevel(n) {
+  function deal(n, attempt) {
+    return dealWith(paramsFor(n), n * 7919 + attempt * 104729 + 17, { n: n });
+  }
+
+  // One shared deal per calendar day. dateKey is 'YYYY-MM-DD'.
+  function dealDaily(dateKey, attempt) {
+    var seed = parseInt(dateKey.replace(/-/g, ''), 10) * 31 + attempt * 104729 + 5;
+    return dealWith(DAILY_PARAMS, seed, { daily: dateKey });
+  }
+
+  function firstSolvable(make) {
     var d;
-    for (var attempt = 0; attempt < 60; attempt++) {
-      d = deal(n, attempt);
+    for (var attempt = 0; attempt < 80; attempt++) {
+      d = make(attempt);
       if (solve(d.level, d.state)) return d;
     }
     return d;
   }
+
+  // Every deal is checked by the solver, so none is impossible from the start.
+  function makeLevel(n) { return firstSolvable(function (a) { return deal(n, a); }); }
+  function makeDaily(dateKey) { return firstSolvable(function (a) { return dealDaily(dateKey, a); }); }
 
   function clone(st) { return JSON.parse(JSON.stringify(st)); }
 
@@ -258,10 +283,14 @@
     return cols + '#' + s.pool.slice().sort(function (a, b) { return a - b; }).join(',') + '#' + s.slots.slice().sort().join(',');
   }
 
-  // Returns the list of moves that finishes the level, or null if none was found within the budget.
-  function solve(level, st, cap) {
+  /* Searches for a way to finish. Returns { path, capped }:
+     path is the list of moves or null; capped is true when the search ran out of budget,
+     so a null path with capped false means the position is truly dead. The move set is
+     smaller than what a player may do (no splitting runs, no parking inbox cards on piles),
+     but those extra moves never uncover or free anything, so nothing is lost. */
+  function analyse(level, st, cap) {
     cap = cap || 20000;
-    var seen = Object.create(null), nodes = 0;
+    var seen = Object.create(null), nodes = 0, capped = false;
     // Pool order is the order cards come to hand: the drawn card, the rest of the inbox,
     // then the older drawn cards after the inbox is turned over. Hints rely on this so that
     // following them never chases a card that keeps slipping back under the pile.
@@ -271,16 +300,26 @@
     function dfs(s) {
       if (isWon(level, s)) return [];
       var key = absKey(s);
-      if (seen[key] || ++nodes > cap) return null;
+      if (seen[key]) return null;
+      if (++nodes > cap) { capped = true; return null; }
       seen[key] = 1;
       var ms = absMoves(level, s);
-      for (var i = 0; i < ms.length; i++) {
+      for (var i = 0; i < ms.length && !capped; i++) {
         var r = dfs(absApply(level, s, ms[i]));
         if (r) { r.unshift(ms[i]); return r; }
       }
       return null;
     }
-    return dfs(start);
+    var path = dfs(start);
+    return { path: path, capped: capped };
+  }
+
+  function solve(level, st, cap) { return analyse(level, st, cap).path; }
+
+  // True only when the search proved there is no way left to finish.
+  function isDead(level, st) {
+    var a = analyse(level, st);
+    return !a.path && !a.capped;
   }
 
   // Next step toward a solution from the current position.
@@ -299,7 +338,8 @@
   function stars(slips) { return slips <= 1 ? 3 : slips <= 4 ? 2 : 1; }
 
   var api = {
-    paramsFor: paramsFor, deal: deal, makeLevel: makeLevel, runAt: runAt, idsOf: idsOf,
+    paramsFor: paramsFor, deal: deal, dealDaily: dealDaily, makeLevel: makeLevel, makeDaily: makeDaily,
+    analyse: analyse, isDead: isDead, runAt: runAt, idsOf: idsOf,
     check: check, move: move, draw: draw, isWon: isWon, solve: solve, hint: hint, stars: stars
   };
   root.FU_ENGINE = api;

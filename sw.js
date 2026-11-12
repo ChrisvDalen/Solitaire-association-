@@ -1,5 +1,5 @@
 // Offline cache for the installed app. Network first, so updates arrive when online.
-const CACHE = 'filed-under-v1';
+const CACHE = 'filed-under-v2';
 const FILES = ['./', 'index.html', 'styles.css', 'src/data.js', 'src/engine.js', 'src/ui.js', 'icon.svg', 'manifest.webmanifest'];
 self.addEventListener('install', (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())));
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));

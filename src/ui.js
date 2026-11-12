@@ -6,11 +6,66 @@
   var STORE = 'filed-under-v1';
   var reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  var save = { unlocked: 1, stars: {}, current: 1, seenHelp: false, game: null };
-  try { Object.assign(save, JSON.parse(localStorage.getItem(STORE)) || {}); } catch (e) { /* storage unavailable */ }
+  var SAVE_VERSION = 2;  // bump when deals change, so a half-played old deal is not resumed
+  var save = { v: SAVE_VERSION, unlocked: 1, stars: {}, current: 1, seenHelp: false, sound: true, game: null, daily: { last: '', streak: 0, stars: 0 } };
+  try {
+    var stored = JSON.parse(localStorage.getItem(STORE)) || {};
+    if (stored.v !== SAVE_VERSION) stored.game = null;
+    Object.assign(save, stored, { v: SAVE_VERSION });
+  } catch (e) { /* storage unavailable */ }
+  function snapshot() {
+    return game ? { key: game.level.daily ? 'D' + game.level.daily : 'L' + game.level.n, st: game.st, slips: game.slips } : null;
+  }
   function persist() {
-    save.game = game ? { n: game.level.n, st: game.st, slips: game.slips } : null;
+    save.game = snapshot();
     try { localStorage.setItem(STORE, JSON.stringify(save)); } catch (e) { /* storage unavailable */ }
+  }
+
+  function dateKey(offsetDays) {
+    var d = new Date();
+    d.setDate(d.getDate() + (offsetDays || 0));
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  }
+  function prettyDate(key) {
+    var p = key.split('-');
+    return new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  }
+  function liveStreak() {
+    var d = save.daily;
+    return d.last === dateKey() || d.last === dateKey(-1) ? d.streak : 0;
+  }
+
+  /* ---------- sound and vibration ---------- */
+
+  var audio = null;
+  var SOUNDS = {
+    draw: [[300, 0, 0.04, 'triangle', 0.05]],
+    place: [[430, 0, 0.06, 'triangle', 0.07]],
+    file: [[620, 0, 0.07, 'triangle', 0.08]],
+    done: [[620, 0, 0.09, 'triangle', 0.08], [930, 0.09, 0.16, 'triangle', 0.08]],
+    wrong: [[170, 0, 0.16, 'sawtooth', 0.04]],
+    win: [[523, 0, 0.12, 'triangle', 0.08], [659, 0.11, 0.12, 'triangle', 0.08], [784, 0.22, 0.12, 'triangle', 0.08], [1047, 0.33, 0.3, 'triangle', 0.08]]
+  };
+  function sfx(name, buzz) {
+    if (!save.sound) return;
+    try {
+      if (buzz && navigator.vibrate) navigator.vibrate(buzz);
+    } catch (e) { /* vibration refused */ }
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      audio = audio || new Ctx();
+      if (audio.state === 'suspended') audio.resume();
+      SOUNDS[name].forEach(function (n) {
+        var t = audio.currentTime + n[1];
+        var osc = audio.createOscillator(), g = audio.createGain();
+        osc.type = n[3]; osc.frequency.value = n[0];
+        g.gain.setValueAtTime(n[4], t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + n[2]);
+        osc.connect(g); g.connect(audio.destination);
+        osc.start(t); osc.stop(t + n[2] + 0.02);
+      });
+    } catch (e) { /* audio unavailable */ }
   }
 
   var game = null;       // { level, st, history, slips }
@@ -18,16 +73,37 @@
   var hintMark = null;
   var drag = null;
   var toastTimer = 0;
+  var stuckTimer = 0;
 
-  function start(n, resume) {
-    var d = E.makeLevel(n);
+  function begin(d, key, resume) {
     game = { level: d.level, st: d.state, history: [], slips: 0 };
-    if (resume && resume.n === n && resume.st) { game.st = resume.st; game.slips = resume.slips || 0; }
-    save.current = n;
+    if (resume && resume.key === key && resume.st) { game.st = resume.st; game.slips = resume.slips || 0; }
     selection = null; hintMark = null;
     $('sheet-win').hidden = true;
     persist();
     render();
+    checkStuck();
+  }
+  function start(n, resume) {
+    save.current = n;
+    begin(E.makeLevel(n), 'L' + n, resume);
+  }
+  function startDaily(resume) {
+    var key = dateKey();
+    begin(E.makeDaily(key), 'D' + key, resume);
+  }
+  function restart() {
+    if (game.level.daily) startDaily(); else start(game.level.n);
+  }
+
+  // Tell the player when the position can no longer be finished, instead of letting them grind.
+  function checkStuck() {
+    clearTimeout(stuckTimer);
+    $('stuck').hidden = true;
+    stuckTimer = setTimeout(function () {
+      if (!game || E.isWon(game.level, game.st)) return;
+      if (E.isDead(game.level, game.st)) { $('stuck').hidden = false; $('btn-stuck-undo').disabled = !game.history.length; }
+    }, 300);
   }
 
   /* ---------- rendering ---------- */
@@ -57,7 +133,7 @@
     var L = game.level, st = game.st, C = L.cards, P = L.params;
     var before = fromRects || rects();
 
-    $('level-tag').textContent = 'Level ' + L.n;
+    $('level-tag').textContent = L.daily ? 'Daily · ' + prettyDate(L.daily) : 'Level ' + L.n;
     $('stat-moves').textContent = st.moves;
     $('stat-slips').textContent = game.slips;
     $('btn-undo').disabled = !game.history.length;
@@ -216,6 +292,7 @@
       } else {
         toast('That tray is in use.');
       }
+      sfx('wrong', res.reason === 'mismatch' ? 40 : 0);
       render(fromRects);
       ids.forEach(function (id) {
         var el = document.querySelector('.card[data-id="' + id + '"]');
@@ -236,8 +313,10 @@
       var done = C.find(function (c) { return c.kind === 'head' && c.cat === out.filed; });
       toast(done.text + ' is complete. The tray is free again.');
     }
+    sfx(out.filed !== null ? 'done' : dest.t === 'slot' ? 'file' : 'place', out.filed !== null ? 15 : 0);
     persist();
-    if (E.isWon(L, game.st)) setTimeout(win, 350);
+    if (E.isWon(L, game.st)) { clearTimeout(stuckTimer); setTimeout(win, 350); }
+    else checkStuck();
   }
 
   function drawCard() {
@@ -246,16 +325,20 @@
     selection = null; hintMark = null;
     game.history.push(game.st);
     game.st = s;
+    sfx('draw');
     render();
     persist();
+    checkStuck();
   }
 
   function undo() {
-    if (!game.history.length) return;
+    if (!game.history.length || E.isWon(game.level, game.st)) return;
     selection = null; hintMark = null;
     game.st = game.history.pop();
+    sfx('draw');
     render();
     persist();
+    checkStuck();
   }
 
   function showHint() {
@@ -270,11 +353,24 @@
   }
 
   function win() {
-    var n = game.level.n, s = E.stars(game.slips);
-    save.stars[n] = Math.max(save.stars[n] || 0, s);
-    save.unlocked = Math.max(save.unlocked, n + 1);
+    var L = game.level, s = E.stars(game.slips);
+    var line = game.st.moves + ' moves, ' + game.slips + (game.slips === 1 ? ' slip.' : ' slips.');
+    if (L.daily) {
+      var d = save.daily;
+      if (d.last !== L.daily) {
+        d.streak = d.last === dateKey(-1) ? d.streak + 1 : 1;
+        d.last = L.daily; d.stars = s;
+      } else d.stars = Math.max(d.stars, s);
+      line += ' ' + (d.streak === 1 ? 'First day of a new streak.' : d.streak + ' days in a row.');
+      $('win-eyebrow').textContent = 'Daily deal · ' + prettyDate(L.daily);
+      $('btn-next').textContent = 'Back to levels';
+    } else {
+      save.stars[L.n] = Math.max(save.stars[L.n] || 0, s);
+      save.unlocked = Math.max(save.unlocked, L.n + 1);
+      $('win-eyebrow').textContent = 'Level ' + L.n;
+      $('btn-next').textContent = 'Next level';
+    }
     var keep = game; game = null; persist(); game = keep;
-    $('win-eyebrow').textContent = 'Level ' + n;
     var stamps = $('win-stamps');
     stamps.textContent = '';
     for (var i = 0; i < 3; i++) {
@@ -283,26 +379,41 @@
       el.textContent = 'FILED';
       stamps.appendChild(el);
     }
-    $('win-line').textContent = game.st.moves + ' moves, ' + game.slips + (game.slips === 1 ? ' slip.' : ' slips.');
+    $('win-line').textContent = line;
     $('sheet-win').hidden = false;
     $('btn-next').focus();
+    sfx('win', [20, 60, 20]);
   }
 
   function openMenu() {
     var grid = $('level-grid');
     grid.textContent = '';
     var shown = Math.max(12, Math.ceil((save.unlocked + 1) / 6) * 6);
+    var total = 0;
     for (var n = 1; n <= shown; n++) {
       var b = document.createElement('button');
       b.dataset.level = n;
       b.disabled = n > save.unlocked;
-      if (game && n === game.level.n) b.setAttribute('aria-current', 'true');
+      if (game && !game.level.daily && n === game.level.n) b.setAttribute('aria-current', 'true');
       var s = save.stars[n] || 0;
+      total += s;
       b.innerHTML = n + '<small>' + '●'.repeat(s) + '</small>';
       b.setAttribute('aria-label', 'Level ' + n + (s ? ', ' + s + ' of 3 stamps' : ''));
       grid.appendChild(b);
     }
+    Object.keys(save.stars).forEach(function (k) { if (+k > shown) total += save.stars[k]; });
+    $('tally').textContent = total + (total === 1 ? ' stamp' : ' stamps');
+
+    var today = dateKey(), streak = liveStreak(), doneToday = save.daily.last === today;
+    $('daily-date').textContent = prettyDate(today) + (doneToday ? ' · filed, ' + save.daily.stars + ' of 3 stamps' : ' · the same deal for everyone');
+    $('daily-side').textContent = streak ? streak + (streak === 1 ? ' day' : ' days') + ' running' : doneToday ? '' : 'Start a streak';
+    $('howto').open = !save.seenHelp;
+    paintSound();
     $('sheet-menu').hidden = false;
+  }
+  function paintSound() {
+    $('btn-sound').textContent = save.sound ? 'Sound on' : 'Sound off';
+    $('btn-sound').setAttribute('aria-pressed', save.sound ? 'true' : 'false');
   }
   function closeMenu() {
     $('sheet-menu').hidden = true;
@@ -384,9 +495,15 @@
   $('btn-hint').addEventListener('click', showHint);
   $('btn-menu').addEventListener('click', openMenu);
   $('btn-close-menu').addEventListener('click', closeMenu);
-  $('btn-restart').addEventListener('click', function () { closeMenu(); start(game.level.n); });
-  $('btn-replay').addEventListener('click', function () { start(game.level.n); });
-  $('btn-next').addEventListener('click', function () { start(game.level.n + 1); });
+  $('btn-restart').addEventListener('click', function () { closeMenu(); restart(); });
+  $('btn-replay').addEventListener('click', restart);
+  $('btn-next').addEventListener('click', function () {
+    start(game.level.daily ? Math.min(save.current || 1, save.unlocked) : game.level.n + 1);
+  });
+  $('btn-daily').addEventListener('click', function () { closeMenu(); startDaily(); });
+  $('btn-sound').addEventListener('click', function () { save.sound = !save.sound; paintSound(); persist(); sfx('file'); });
+  $('btn-stuck-undo').addEventListener('click', undo);
+  $('btn-stuck-restart').addEventListener('click', restart);
   $('level-grid').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-level]');
     if (!b || b.disabled) return;
@@ -399,15 +516,17 @@
 
   function boot(hot) {
     var resume = (hot && hot.game) || save.game;
-    start(resume && resume.n ? resume.n : Math.min(save.current || 1, save.unlocked), resume);
-    if (E.isWon(game.level, game.st)) start(game.level.n);
+    var key = resume && resume.key ? resume.key : '';
+    if (key === 'D' + dateKey()) startDaily(resume);
+    else start(key.charAt(0) === 'L' ? +key.slice(1) : Math.min(save.current || 1, save.unlocked), resume);
+    if (E.isWon(game.level, game.st)) restart();
     if (!save.seenHelp) openMenu();
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { if (game) render({}); });
   }
 
   var hot = window.claude && window.claude.hot;
   if (hot && hot.snapshot) {
-    try { hot.snapshot(function () { return { game: game ? { n: game.level.n, st: game.st, slips: game.slips } : null }; }); } catch (e) { /* not in a viewer */ }
+    try { hot.snapshot(function () { return { game: snapshot() }; }); } catch (e) { /* not in a viewer */ }
   }
   if (hot && hot.ready) hot.ready(boot); else boot((hot && hot.data) || {});
 

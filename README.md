@@ -15,7 +15,13 @@ It is an original game in the word-solitaire genre: its own name, rules, artwork
 - Wrong guesses and hints count as slips. One slip or fewer earns three stamps.
 
 Levels are endless and generated from the level number, so level 12 is the same deal for everyone.
-Every deal is checked by a solver before it is shown, and the Hint button uses the same solver.
+Most cards start face down on the piles and trays are scarce, so which headings you open, and when,
+decides whether the words you need can be dug out.
+
+- **Today's deal**: one extra deal per calendar day, the same for everyone, with a streak counter.
+- **Solver-checked**: every deal is verified as winnable before it is shown. Hint uses the same solver.
+- **Stuck warning**: when no way to finish is left, the game says so and offers Undo or Restart.
+- **Sound and vibration**: short synthesised cues, switched off from the menu.
 
 ## Run
 

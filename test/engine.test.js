@@ -81,3 +81,42 @@ test('following hints alone finishes the level', () => {
     }
   }
 });
+
+test('daily deals are solvable, deterministic and differ by day', () => {
+  const a = E.makeDaily('2026-11-12'), b = E.makeDaily('2026-11-13');
+  assert.deepStrictEqual(a, E.makeDaily('2026-11-12'));
+  assert.notDeepStrictEqual(a.state, b.state);
+  assert.strictEqual(a.level.daily, '2026-11-12');
+  for (let d = 1; d <= 28; d++) {
+    const k = `2027-02-${String(d).padStart(2, '0')}`;
+    const { level, state } = E.makeDaily(k);
+    assert.ok(E.solve(level, state), k);
+  }
+});
+
+test('every card is dealt exactly once and most of them onto the piles', () => {
+  for (const n of [1, 4, 9, 20, 30]) {
+    const { level, state } = E.makeLevel(n);
+    const all = [...state.cols.flat(), ...state.stock].sort((x, y) => x - y);
+    assert.deepStrictEqual(all, level.cards.map((c) => c.id));
+    assert.ok(state.cols.flat().length > state.stock.length, `level ${n}`);
+    assert.ok(state.cols.every((c) => c.length >= 1));
+  }
+});
+
+test('a dead position is recognised and a live one is not', () => {
+  const { level, state } = E.makeLevel(3);
+  assert.strictEqual(E.isDead(level, state), false);
+
+  // Hand-built: both trays are held by headings whose only word sits under another heading.
+  const cards = [];
+  for (let cat = 0; cat < 4; cat++) {
+    cards.push({ id: cards.length, cat, kind: 'head', text: 'H' + cat });
+    cards.push({ id: cards.length, cat, kind: 'word', text: 'W' + cat });
+  }
+  const tiny = { n: 0, daily: null, params: { cats: 4, words: 1, slots: 2, cols: 2 }, cards };
+  const dead = { cols: [[1, 4], [3, 6]], down: [1, 1], stock: [5, 7], waste: [], slots: [0, 1], placed: [0, 0, 0, 0], moves: 0 };
+  assert.strictEqual(E.isDead(tiny, dead), true);
+  // Free one tray and the same layout can be finished.
+  assert.strictEqual(E.isDead(tiny, { ...dead, slots: [0, null], cols: [[1, 4], [6]], down: [1, 0], stock: [5, 7, 3, 2] }), false);
+});

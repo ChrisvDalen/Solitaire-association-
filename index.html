@@ -47,6 +47,11 @@
     </div>
   </footer>
 
+  <div class="stuck" id="stuck" role="status" hidden>
+    <span>No way to finish from here.</span>
+    <button class="btn small" id="btn-stuck-undo">Undo</button>
+    <button class="btn small" id="btn-stuck-restart">Restart</button>
+  </div>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 </div>
 
@@ -65,18 +70,31 @@
 
 <div class="sheet" id="sheet-menu" hidden>
   <div class="sheet-card">
-    <h2>Filed Under</h2>
-    <ol class="rules">
-      <li>A <b>heading card</b> opens a tray. Drag it up, or tap it and then tap an empty tray.</li>
-      <li>File each <b>word</b> in the tray whose heading it belongs under. The game does not tell you which.</li>
-      <li>On the piles, cards stack only on a card with the same heading. Any card can start an empty pile.</li>
-      <li>Draw from the inbox when you are stuck. A full tray empties itself and can be reused.</li>
-    </ol>
-    <p class="sheet-line">Wrong guesses and hints count as slips. One slip or fewer earns three stamps.</p>
+    <div class="sheet-head">
+      <h2>Filed Under</h2>
+      <p class="tally" id="tally"></p>
+    </div>
+    <button class="daily" id="btn-daily">
+      <span class="daily-main"><b>Today's deal</b><span id="daily-date"></span></span>
+      <span class="daily-side" id="daily-side"></span>
+    </button>
+    <details id="howto">
+      <summary>How to play</summary>
+      <ol class="rules">
+        <li>A <b>heading card</b> opens a tray. Drag it up, or tap it and then tap an empty tray.</li>
+        <li>File each <b>word</b> in the tray whose heading it belongs under. The game does not tell you which.</li>
+        <li>On the piles, cards stack only on a card with the same heading. Any card can start an empty pile.</li>
+        <li>Draw from the inbox when you are stuck. A full tray empties itself and can be reused.</li>
+        <li>Trays are scarce. Open the wrong headings and the words you need stay buried.</li>
+      </ol>
+      <p class="sheet-line">Wrong guesses and hints count as slips. One slip or fewer earns three stamps.</p>
+    </details>
     <h3>Levels</h3>
     <div class="level-grid" id="level-grid"></div>
-    <div class="sheet-actions">
-      <button class="btn" id="btn-restart">Restart level</button>
+    <div class="sheet-actions spread">
+      <button class="btn" id="btn-sound" aria-pressed="true">Sound on</button>
+      <span class="grow"></span>
+      <button class="btn" id="btn-restart">Restart</button>
       <button class="btn primary" id="btn-close-menu">Play</button>
     </div>
   </div>

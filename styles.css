@@ -186,6 +186,16 @@ button { font: inherit; color: inherit; }
   font-size: 17px; font-weight: 600; text-align: center; z-index: 60; pointer-events: none;
 }
 
+.stuck {
+  position: absolute; left: 50%; bottom: 92px; transform: translateX(-50%);
+  width: max-content; max-width: calc(100% - 32px); box-sizing: border-box;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center;
+  background: var(--panel); color: var(--ink); border: 2px solid var(--stamp); border-radius: 10px;
+  padding: 8px 10px 8px 14px; font-size: 17px; font-weight: 600; z-index: 55;
+  box-shadow: 0 6px 16px var(--shadow);
+}
+.btn.small { min-height: 36px; padding: 0 12px; font-size: 14px; }
+
 /* ---- sheets ---- */
 .sheet {
   position: fixed; inset: 0; z-index: 100; display: grid; place-items: center;
@@ -229,3 +239,19 @@ button { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .card, .slot, .stamp, .stock { animation: none !important; }
 }
+
+.sheet-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.tally { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); white-space: nowrap; }
+.daily {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left;
+  width: 100%; box-sizing: border-box; padding: 12px 14px; cursor: pointer;
+  background: var(--manila); color: var(--card-ink); border: 0; border-bottom: 3px solid var(--manila-edge); border-radius: 8px;
+}
+.daily-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 16px; font-weight: 500; }
+.daily-main b { font-family: var(--font-display); font-weight: 800; font-size: 20px; letter-spacing: -.01em; }
+.daily-side { font-size: 14px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; text-align: right; }
+details summary { cursor: pointer; font-size: 14px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); padding: 6px 0; }
+details[open] summary { margin-bottom: 6px; }
+details .sheet-line { margin-top: 10px; }
+.sheet-actions.spread { justify-content: flex-start; flex-wrap: wrap; }
+.grow { flex: 1; }
